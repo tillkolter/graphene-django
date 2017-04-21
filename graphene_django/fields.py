@@ -27,6 +27,42 @@ class DjangoListField(Field):
         return partial(self.list_resolver, parent_resolver)
 
 
+class PaginatedDjangoListField(DjangoListField):
+
+    @staticmethod
+    def sliced_queryset(iterable, args):
+        page = args.get('page')
+        pageSize = args.get('size')
+
+        if isinstance(iterable, QuerySet):
+            _len = iterable.count()
+        else:
+            _len = len(iterable)
+
+        start_offset = (page-1) * pageSize
+
+        if start_offset < _len:
+            end_offset = start_offset + pageSize
+            if end_offset < _len:
+                sliced = iterable[start_offset:end_offset]
+            else:
+                sliced = iterable[start_offset]
+
+            return {
+                'items': [e for e in sliced],
+                'hasMore': end_offset + 1 < _len
+            }
+        return {
+            'items': [],
+            'hasMore': False
+        }
+
+    @staticmethod
+    def list_resolver(resolver, root, args, context, info):
+        iterable = maybe_queryset(resolver(root, args, context, info))
+        return DjangoListField.sliced_queryset(iterable, args)
+
+
 class DjangoConnectionField(ConnectionField):
 
     def __init__(self, *args, **kwargs):
